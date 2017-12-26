@@ -1,0 +1,28 @@
+ Centos6.8:
+
+防止syn攻击（DDOOS攻击的一种）
+iptables -I INPUT -p tcp --syn -m limit --limit 1/s -j ACCEPT
+iptables -I FORWARD -p tcp --syn -m limit --limit 1/s -j ACCEPT
+防止各种端口扫描
+iptables -A FORWARD -p tcp --tcp-flags SYN,ACK,FIN,RST RST -m limit --limit 1/s -j ACCEPT
+Ping洪水攻击（Ping of Death）
+iptables -A FORWARD -p icmp --icmp-type echo-request -m limit --limit 1/s -j ACCEPT
+
+先关闭之前已经放开的80端口；
+iptables 限制单IP 规定时间内，的并发量(注意规则的先后顺序)
+iptables -I INPUT 11 -p tcp --dport 80 -m recent --name BAD_HTTP_ACCESS --update --seconds 20 --hitcount 50 -j REJECT
+iptables -I INPUT 12 -p tcp --dport 80 -m recent --name BAD_HTTP_ACCESS --set -j ACCEPT
+
+如果下上述指令时，得到下列错误：
+iptables: Invalid argument. Run `dmesg' for more information.
+增加 xt_recent模块 --hitcount parameter（默认值为20）的最大值，选项 ip_pkt_list_tot=50,ip_list_tot=1024 就ok了，默认值可以查看
+/sys/module/xt_recent/parameters/ip_pkt_list_tot
+/sys/module/xt_recent/parameters/ip_list_tot
+
+
+注意：每次 yum update kernel -y 升级完内核以后，系统重启，
+1) ipset create drop_ip hash:net
+2) 启动iptables   让其报错，然后在/sys/module/ 下生成 xt_recent文件目录，，然后进去修改参数，，再来启动  iptables
+     为什么会报错：原因是默认 ip_pkt_list_tot=20,ip_list_tot=100   与 限制单IP 规定时间内，的并发量 中设置的50及1024不   符
+ 
+3) 导入原先备份的 drop_ip.txt 的记录。 ipset add drop_ip xxx.xxx.xxx.xxx
