@@ -1,0 +1,38 @@
+ # EDIT YOUR DETAILS / CONFIGURATION HERE（这里更改用户配置）
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+:global ddnsuser "youname"
+:global ddnspass "passwd"
+:global ddnshost "changeip_dynamic_name"
+:global ddnsinterface "pppoe-out1"
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# END OF USER DEFINED CONFIGURATION（用户配置更改结束，下面的命令不要动）
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:global ddnssystem ("mt-" . [/system package get [/system package find name=system] version] )
+:global ddnsip [ /ip address get [/ip address find interface=$ddnsinterface] address ]
+:global ddnslastip
+
+:if ([:len [/interface find name=$ddnsinterface]] = 0 ) do={ :log info "DDNS: No interface named $ddnsinterface, please check configuration." }
+
+:if ([ :typeof $ddnslastip ] = "nothing" ) do={ :global ddnslastip 0.0.0.0/0 }
+
+:if ([ :typeof $ddnsip ] = "nothing" ) do={
+
+:log info ("DDNS: No ip address present on " . $ddnsinterface . ", please check.")
+
+} else={
+
+  :if ($ddnsip != $ddnslastip) do={
+
+    :log info "DDNS: Sending UPDATE!"
+    :log info [ :put [/tool dns-update name=$ddnshost address=[:pick $ddnsip 0 [:find $ddnsip "/"] ] key-name=$ddnsuser key=$ddnspass ] ]
+    :global ddnslastip $ddnsip
+
+  } else={
+
+    :log info "DDNS: No changes necessary."
+
+  }
+
+}
+# END OF SCRIPT
