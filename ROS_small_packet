@@ -1,0 +1,73 @@
+ ROS终端界面直接输入即可
+
+HTB QOS 流量质量控制
+
+1-8级优先级控制，数字越小优先级越高
+
+LAN内网接口
+TEL 外网接口
+SMALL 小包 32-512字节 5级优先级
+BIG 大包 512-1200字节 6级优先级
+general 其它包 1200-1500字节 7级优先级
+P2P类 8级优先，全局限速 600KB/S下载
+Leaf 子类
+
+红色部份请接自己的情况修改：
+
+/ ip firewall mangle
+add chain=forward p2p=all-p2p action=mark-connection new-connection-mark=p2p_conn passthrough=yes comment="" disabled=no
+add chain=forward connection-mark=p2p_conn action=mark-packet new-packet-mark=p2p passthrough=yes comment="" disabled=no
+add chain=forward connection-mark=!p2p_conn action=mark-packet new-packet-mark=general passthrough=yes comment="" disabled=no
+add chain=forward packet-size=32-512 action=mark-packet new-packet-mark=small passthrough=yes comment="" disabled=no
+add chain=forward packet-size=512-1200 action=mark-packet new-packet-mark=big passthrough=yes comment="" disabled=no
+
+/ queue tree
+add name="p2p1" parent=TELpacket-mark=p2p limit-at=2000000 queue=default priority=8 max-limit=6000000 burst-limit=0 burst-threshold=0 burst-time=0s disabled=no
+add name="p2p2" parent=LANpacket-mark=p2p limit-at=2000000 queue=default priority=8 max-limit=6000000 burst-limit=0 burst-threshold=0 burst-time=0s disabled=no
+add name="ClassA" parent=LANpacket-mark="" limit-at=0 queue=default priority=8 max-limit=100000000 burst-limit=0 burst-threshold=0 burst-time=0s disabled=no
+add name="ClassB" parent=ClassA packet-mark="" limit-at=0 queue=default priority=8 max-limit=0 burst-limit=0 burst-threshold=0 burst-time=0s disabled=no
+add name="Leaf1" parent=ClassA packet-mark=general limit-at=0 queue=default priority=7 max-limit=0 burst-limit=0 burst-threshold=0 burst-time=0s disabled=no
+add name="Leaf2" parent=ClassB packet-mark=small limit-at=0 queue=default priority=5 max-limit=0 burst-limit=0 burst-threshold=0 burst-time=0s disabled=no
+add name="Leaf3" parent=ClassB packet-mark=big limit-at=0 queue=default priority=6 max-limit=0 burst-limit=0 burst-threshold=0 burst-time=0s disabled=no
+
+=======================================
+
+#ROS线路状态声音报警脚本,红色部份请接自己的情况修改：
+
+/ tool netwatch
+add host=219.133.4.1timeout=1s interval=10s up-script=syok down-script=sy \
+comment="test" disabled=no
+/ system script.
+add name="sy" source=":beep length=10s frequency=2080" \
+policy=ftp,reboot,read,write,policy,test,winbox,password
+
+=======================================
+
+#通过防火墙规则斩断扫描你的ROS的黑手
+
+/ip firewall filter add chain=input protocol=tcp psd=21,3s,3,1 action=add-src-to-address-list address-list="port scanners" address-list-timeout=14d comment="Port scanners to list " disabled=no
+/ip firewall filter add chain=input protocol=tcp tcp-flags=fin,!syn,!rst,!psh,!ack,!urg action=add-src-to-address-list address-list="port scanners" address-list-timeout=14d comment="NMAP FIN Stealth scan"
+/ip firewall filter add chain=input protocol=tcp tcp-flags=fin,syn action=add-src-to-address-list address-list="port scanners" address-list-timeout=14d comment="SYN/FIN scan"
+/ip firewall filter add chain=input protocol=tcp tcp-flags=syn,rst action=add-src-to-address-list address-list="port scanners" address-list-timeout=14d comment="SYN/RST scan"
+/ip firewall filter add chain=input protocol=tcp tcp-flags=fin,psh,urg,!syn,!rst,!ack action=add-src-to-address-list address-list="port scanners" address-list-timeout=14d comment="FIN/PSH/URG scan"
+/ip firewall filter add chain=input protocol=tcp tcp-flags=fin,syn,rst,psh,ack,urg action=add-src-to-address-list address-list="port scanners" address-list-timeout=14d comment="ALL/ALL scan"
+/ip firewall filter add chain=input protocol=tcp tcp-flags=!fin,!syn,!rst,!psh,!ack,!urg action=add-src-to-address-list address-list="port scanners" address-list-timeout=14d comment="NMAP NULL scan"
+/ip firewall filter add chain=input src-address-list="port scanners" action=drop comment="dropping port scanners" disabled=no
+
+=======================================
+
+批量建立PPPOE帐号，以下规则为我当时配置环境而建立，红色部份请接自己的情况修改：
+
+:for SZWM from 1 to 9 do={/ ppp secret add name="(sz90. $SZW
+M .@163.gd)" service=pppoe caller-id="" password="(sz90. $SZWM .369)" profile
+=PPPOEremote-address=(192.168.0.9. $SZWM) routes="" limit-bytes-in=0 limit-byt
+es-out=0 comment="" disabled=no}
+
+=======================================
+
+ros 防二级代理:根据自己网段修改
+
+/ ip firewall mangle
+add chain=forward action=change-ttl new-ttl=set:128 comment="" disabled=no
+add chain=forward dst-address=192.168.0.0/24action=change-ttl new-ttl=set:0 \
+comment="" disabled=no
