@@ -1,0 +1,104 @@
+ net.ipv4.tcp_synack_retries = 0        定义SYN 的重试次数
+net.ipv4.tcp_syn_retries = 0               定义SYN 的重试次
+net.ipv4.tcp_max_syn_backlog = 20000    是SYN队列的长度
+
+fs.file-max = 819200                               最大文件数句柄
+net.core.somaxconn = 65535                  应对突发的最大并发connect 请求
+net.core.rmem_max = 1024123000        最大的TCP 数据接收缓冲（字节）
+net.core.wmem_max = 16777216          最大的TCP 数据发送缓冲（字节）
+net.core.netdev_max_backlog = 165536    网络设备接收数据包的速率比内核处理这些包的速率快时，允许送到队列的数据包的最大数目
+net.ipv4.ip_local_port_range = 10000 65535  本机主动连接其他机器时的端口分配范围
+
+net.ipv4.tcp_max_tw_buckets = 180000          TCP最大连接池
+net.ipv4.tcp_syncookies = 0                            SYN Cookie（缓存） 功能，该功能可以防止部分SYN攻击
+net.ipv4.tcp_tw_reuse = 0                               TIME_WAIT状态的连接重用功能
+net.ipv4.tcp_timestamps = 0                            TCP时间戳
+net.ipv4.tcp_tw_recycle = 0                              TIME_WAIT状态的连接回收功能
+
+sysctl -p
+
+vi /etc/security/limits.conf
+* - nofile    409600
+
+
+
+
+netstat -n | awk '/^tcp/ {++S[$NF]} END {for(a in S) print a, S[a]}'
+这条语句返回结果如下
+
+TIME_WAIT 346
+FIN_WAIT1 85
+FIN_WAIT2 6
+ESTABLISHED 1620
+SYN_RECV 169
+LAST_ACK 8
+
+SYN_RECV表示正在等待处理的请求数；ESTABLISHED表示正常数据传输状态；TIME_WAIT表示处理完毕，等待超时结束的请求数。
+状态：描述
+
+CLOSED：无连接是活动的或正在进行
+
+LISTEN：服务器在等待进入呼叫
+
+SYN_RECV：一个连接请求已经到达，等待确认
+
+SYN_SENT：应用已经开始，打开一个连接
+
+ESTABLISHED：正常数据传输状态
+
+FIN_WAIT1：应用说它已经完成
+
+FIN_WAIT2：另一边已同意释放
+
+ITMED_WAIT：等待所有分组死掉
+
+CLOSING：两边同时尝试关闭
+
+TIME_WAIT：另一边已初始化一个释放
+
+LAST_ACK：等待所有分组死掉
+
+另外很多人会用到TCP SYN Flood透过网路底层对服务器Server进行攻击的，我可以用Iptables防范下：
+防止同步包洪水（Sync Flood）
+iptables -A FORWARD -p tcp --syn -m limit --limit 1/s -j ACCEPT
+
+也有人写作：
+iptables -A INPUT -p tcp --syn -m limit --limit 1/s -j ACCEPT
+--limit 1/s 限制syn并发数每秒1次，可以根据自己的需要修改
+
+防止各种端口扫描
+iptables -A FORWARD -p tcp --tcp-flags SYN,ACK,FIN,RST RST -m limit --limit 1/s -j ACCEPT
+
+Ping洪水攻击（Ping of Death）
+iptables -A FORWARD -p icmp --icmp-type echo-request -m limit --limit 1/s -j ACCEPT
+
+
+防止同步包洪水（Sync Flood）
+# iptables -A FORWARD -p tcp --syn -m limit --limit 1/s -j ACCEPT
+也有人写作
+#/sbin/iptables -A INPUT -p tcp --syn -m limit --limit 1/s -j ACCEPT
+–limit 1/s 限制syn并发数每秒1次，可以根据自己的需要修改
+iptables -A INPUT -p tcp --syn -m limit --limit 1/s --limit-burst xxxx -j ACCEPT
+
+防止各种端口扫描
+# /sbin/iptables -A FORWARD -p tcp --tcp-flags SYN,ACK,FIN,RST RST -m limit --limit 1/s -j ACCEPT
+
+Ping洪水攻击（Ping of Death）
+#/sbin/ iptables -A FORWARD -p icmp --icmp-type echo-request -m limit --limit 1/s -j ACCEPT
+屏蔽 SYN_RECV 的连接
+#/sbin/iptables -A INPUT -p tcp -m tcp --tcp-flags SYN,RST,ACK SYN -m limit --limit 1/sec -j ACCEPT
+
+禁止某IP访问
+
+iptables -I INPUT -s xxx.xxx.xxx.xx -j DROP
+
+保存配置
+#/etc/rc.d/init.d/iptables save
+
+查看 iptables配置
+
+/etc/init.d/iptables status
+
+重启iptables
+
+/etc/init.d/iptables restart
