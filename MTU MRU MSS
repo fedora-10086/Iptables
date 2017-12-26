@@ -1,0 +1,106 @@
+MTU
+通信术语 最大传输单元(Maximum Transmission Unit,MTU)是指一种通信协议的某一层上面所能通过的最大数据报大小(以字节为单位)
+
+MTU 不行太大也不能太小 要刚刚合适
+比如:一个数据总长是 2999字节
+MTU 为1500时 这个数据被 拆成 1500 为标准的一段 分 1500+1499 2段 传送完毕
+MTU 为1400 时 这个数据被 拆成 1400 为标准的一段 分 1400+1400+199 3段 传送完毕
+所以太小了 传送就不效率了...
+
+比如:一个数据总长是 9999字节
+MTU 为15000时 这个数据被 拆成 15000 为标准的一段 分 15000 1段 传送完毕
+但是包太大 传送过程中 被干扰 或者 丢包了 就需要重新发送了
+所以太大了 传送就也不效率了...
+
+百兆网络 默认的MTU世界标准为最大1500 (PS:千兆也有巨帧 比如4k 6k 9k 甚至16k 不过要纯千兆环境才可以)
+
+MRU Maximum-Receive-Unit (MRU) 和MTU一样 可以简单理解为 一个接受 一个发送 值而已
+所以一般 路由设置 MTU MRU 相同值即可
+
+如果测试 MTU 适合呢?
+同最简单的方法就行了...
+ping命令 用到2个参数 -l 就是包的大小 -f 不允许分段传送
+
+例子我这里要测试 ADSL 的 最佳MTU值
+-l 参数一般 从 1472 逐步减少 (MTU最大值是1500 减去28包头就是1472了)
+
+
+    C:>ping -l 1465 -f qq.com
+    Pinging qq.com [119.147.15.55] with 1465 bytes of data:
+    Packet needs to be fragmented but DF set.
+    Packet needs to be fragmented but DF set.
+    Packet needs to be fragmented but DF set.
+    Packet needs to be fragmented but DF set.
+    Ping statistics for 119.147.15.55:
+    Packets: Sent = 4, Received = 0, Lost = 4 (100% loss),
+    C:>ping -l 1464 -f qq.com
+    Pinging qq.com [119.147.15.55] with 1464 bytes of data:
+    Reply from 119.147.15.55: bytes=1464 time=34ms TTL=56
+    Reply from 119.147.15.55: bytes=1464 time=36ms TTL=56
+    Reply from 119.147.15.55: bytes=1464 time=36ms TTL=56
+    Reply from 119.147.15.55: bytes=1464 time=34ms TTL=56
+    Ping statistics for 119.147.15.55:
+    Packets: Sent = 4, Received = 4, Lost = 0 (0% loss),
+    Approximate round trip times in milli-seconds:
+    Minimum = 34ms, Maximum = 36ms, Average = 35ms
+
+
+这里可以看出 1465 的包太大了 要分段传送 1464 就刚刚好
+
+    1464 + 28 = 1492
+    1492 就是我这里 ADSL的最佳 MTU MRU了...
+
+
+MSS是报文传输
+MSS + 20 字节 IP包头 + 20字节TCP头 就是 MTU了...
+
+那么我的最佳MSS就是 MTU 减去40 1492-40 = 1452
+1452就是我最佳的MSS了...
+
+小结:
+ping -l 的值 + 28 就是最佳 MTU值
+MTU 减去 40 就是 最佳MSS值.
+
+
+MTU设置
+ 
+MTU，即Maximum Transmission Unit(最大传输单元)，此值设定TCP/IP协议传输数据报时的最大传输单元。设置合适的MTU值可以解决“部分网站打不开”、“上网速度慢”等问题，并且可以适当提升上网速度。
+设置多大的MTU值取决于你的上网方式，不同的上网方式支持不同的MTU，下面列出了一些上网方式的MTU值：
+EtherNet(一般上网方式，默认值):1500
+PPPoE/ADSL:1492
+Dial Up/Modem:576
+
+问题一：知道了我的上网方式，如何设置MTU值？
+1. 在 『开始』>『运行』中，键入regedit，点确定；
+2. 选择『HKEY_Local_Machine』>『SYSTEM』>『CurrentControlSet』>『Services』>『Tcpip』>『Parameters』>『interface』；
+3. 在 interface 底下可能有很多的选项，你一个一个的去看，会有一个选项与你的网卡的 IP 相同，那个就是你要挑选的选项啦！然后同样的在该选项上选择『编辑』>『新建』>『DWORD值』之后，建立一个名为『MTU』的DWORD，然后双击修改，选择十进制，填入合适 MTU 值，确定！大功告成！
+
+问题二：我不知道自己的上网方式，如何确定MTU值呢？
+ping -f -l 1500 127.0.0.1
+
+C:WINDOWS>ping -f -l 1500 127.0.0.1
+Pinging 127.0.0.1 with 1500 bytes of data:
+Packet needs to be fragmented but DF set.
+Packet needs to be fragmented but DF set.
+Packet needs to be fragmented but DF set.
+Packet needs to be fragmented but DF set.
+Ping statistics for 127.0.0.1:
+   Packets: Sent = 4, Received = 0, Lost = 4 (100% loss), Approximate round trip times in milli-seconds:
+   Minimum = 0ms, Maximum = 0ms, Average = 0ms
+
+上面的式子中，-l 是 L 的小写（不是 1 喔），1500 是我们要测的 MTU 值，结果出现了 Packet needs to be fragmented but DF set. 这个东西，那表示MTU值太大了，你需要更小的 MTU 值才行！好啦！那假设我们使用 1464 来测试时：
+
+C:WINDOWS>ping -f -l 1464 127.0.0.1
+Pinging 127.0.0.1 with 1464 bytes of data:
+Reply from 127.0.0.1: bytes=1464 time=10ms TTL=128
+Reply from 127.0.0.1: bytes=1464 time<10ms TTL=128
+Reply from 127.0.0.1: bytes=1464 time<10ms TTL=128
+Reply from 127.0.0.1: bytes=1464 time<10ms TTL=128
+Ping statistics for 127.0.0.1:
+   Packets: Sent = 4, Received = 4, Lost = 0 (0% loss), Approximate round trip times in milli-seconds:
+   Minimum = 0ms, Maximum = 10ms, Average = 2ms
+结果出现了回应了！这表示这一个 MTU 值是可行的！不过，强烈建议找出可行的最大 MTU 值！这样一来，在设定的时候，才可以达到最佳的网速！
+
+找出 MTU 值：利用上面这个方法找到的数值还不是 MTU 喔！由于一些封包上面的问题，上面这个值再加上 28 才是我们所需要的 MTU 值！所以，在上面的例子中，我们所需要的 MTU 值是 1464+28=1492！
+
+一般来讲，设计好本机的MTU值，可以解决部分网站打不开的情况，但是如果你的共享主机或路由器的MTU设置有问题，有时问题仍然存或，或者出现网速过慢的情况。合理的设置路由器与本机的MTU值，就可以完全解决上述问题，使上网速度达到最大化。
