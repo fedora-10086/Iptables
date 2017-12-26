@@ -1,0 +1,69 @@
+安装服务器时也顺便使用iptables，不用不知道，一用才发现iptables还有很多东西可以学的，比如开放ftp服务。
+
+iptables 的filter表的INPUT链的默认策略设为了DROP，其余的链均为ACCEPT。 该服务器即要作ftp服务器，也要连上别的ftp服务器。即是说要把源端口和目的端口都开放21才行：
+
+      # iptables -A INPUT -p tcp --dport 21 -j ACCEPT
+
+开了21端口就行了吗？不是的。
+先说说ftp协议。ftp协议是一个简单、保密性差（明码）的tcp协议，它的工作原理是客户端先连服务器端 的21端口，然后经过3步的握手以后建立了一条连接。要注意的是，这条连接只可以用来传输ftp的命令，只有这条连接的话是什么都传不了的，就算是用 “ls”命令来查看文件也不行。
+建立了命令的连接以后，服务器端就要建立一条数据的连接。数据的连接又分为主动模式（port）和被动模式（passive）。ftp默认是被动 模式，主动和被动之间使用"pass"命令切换。主动模式通过20端口与客户端相连，而被动模式却使用1024以后的端口与客户端相连。由于1024以上 的端口是随机分配的，所以在被动模式下我们是不知道服务端是使用什么端口与客户端连接的。也就是说，我们是不知道iptables要开放什么端口。
+开始我使用的是：
+
+# iptables -A INPUT -p tcp --dport 1024: -j ACCEPT
+
+来让ftp建立被动连接的。但觉得如果这样的话，那就等于把所以p2p的连接都开放了，不安全。
+
+iptables配置FTP的主动和被动模式
+
+    FTP协议有两种工作方式：PORT方式和PASV方式，中文意思为主动式和被动式。
+    Port模式：ftp server:tcp 21 <------client:dynamic ftp server:tcp 20 ------>client:dynamic
+    Pasv模式：ftp server:tcp 21 <----client:dynamic ftp server:tcp dynamic <----client:dynamic
+
+    PORT（主动）方式的连接过程是：客户端向服务器的FTP端口（默认是21）发送连接请求，服务器接受连接，建立一条命令链路。当需要传送数据时，客户 端在命令链路上用PORT命令告诉服务器：“我打开了XXXX端口，你过来连接我”。于是服务器从20端口向客户端的XXXX端口发送连接请求，建立一条 数据链路来传送数据。
+    PASV（被动）方式的连接过程是：客户端向服务器的FTP端口（默认是21）发送连接请求，服务器接受连接，建立一条命令链路。当需要传送数据时，服务 器在命令链路上用PASV命令告诉客户端：“我打开了XXXX端口，你过来连接我”。于是客户端向服务器的XXXX端口发送连接请求，建立一条数据链路来 传送数据。
+
+
+经过上面的分析，并查看了相关的资料，得到如下结论：
+
+
+1、开放20、21端口：
+   # iptables -A INPUT -p tcp --dport 21 -j ACCEPT
+   # iptables -A INPUT -p tcp --dport 20 -j ACCEPT
+
+2、再加上一条规则：
+  # iptables -A INPUT -p tcp --dport 1024: -m state --state ESTABLISHED,RELATED -j ACCEPT
+  允许连接保持的被动访问。
+
+3、上面还不行的话，再加载FTP额外模块：
+   modprobe ip_nat_ftp
+   modprobe ip_conntrack
+   modprobe ip_conntrack_ftp（我 做实验只加载这一块就ok了）
+
+ 为了使开机能运行加载有两种方法，一种是在安装iptables时编译安装上，另一种是把这些加入启动项，添加到 /etc/rc.d/rc.local 结尾就行了，这样每次开机会执行。
+
+如果还有问题我就不清楚了。
+
+补充：
+
+#########################
+处于 server
+iptables -A INPUT -m state –state ESTABLISHED,RELATED -j ACCEPT
+处于 client
+iptables -A OUTPUT -m state –state ESTABLISHED,RELATED -j ACCEPT
+#####################################
+
+其实这样在重启 iptables 的时候所需的模块又不见了，通过不懈的努力终于找到了最终的解决方法，编辑 /etc/sysconfig/iptables-config ：
+IPTABLES_MODULES="ip_conntrack_ftp"
+IPTABLES_MODULES="ip_nat_ftp"
+把需要加载的模块加入，无论重启系统还是 iptables 但 ftp 模块始终还是加载的。
+就这样搞定，希望能在以后帮助大家来解决 ftp 上的问题.
+
+##################################################
+、如果本机做FTP被访问
+service iptables stop 
+modprobe ip_conntrack_irc //如果端口不是21，后面还需要加上端口号。如果是21，这步也可以用modprobe ip_nat_ftp，把其他模块也加载上。
+iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+当INPUT的默认策略是DROP时，RELATED模块用途就是为本机的FTP服务打开衍生端口，ESTABLISHED是允许回包。
+iptables -A INPUT -p tcp --dport 21 -m state --state NEW -j ACCEPT //开放21端口
+iptables -A INPUT -p tcp --dport 22 -m state --state NEW -j ACCEPT //开放管理端口
+iptables -P INPUT DROP   //默认策略拒绝 
