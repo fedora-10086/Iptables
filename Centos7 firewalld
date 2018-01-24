@@ -2,7 +2,7 @@
 CentOS7使用firewalld打开关闭防火墙与端口
 
 存储位置：
-/etc/firewall/zone/public.xml
+/etc/firewalld/zone/public.xml
 /usr/lib/firewalld/zones/public.xml
 
 1、firewalld的基本使用
